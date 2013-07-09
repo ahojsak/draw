@@ -1,0 +1,161 @@
+<!DOCTYPE html> 
+<html>
+<head>
+	<link rel="stylesheet" type="text/css" href="/public/style.css">
+	<script src="/socket.io/socket.io.js"></script>
+	<script type="text/javascript" src="http://ajax.googleapis.com/ajax/libs/jquery/1.8.3/jquery.min.js"></script>
+</head>
+<body>
+	<center>
+	<h1>{{roomName}}</h1>
+	<div id="buttonRow">
+		<div id="colorButtons">
+			Line Color:
+			<div class="color black"></div>
+			<div class="color red"></div>
+			<div class="color blue"></div>
+			<div class="color green"></div>
+		</div>
+		<div id="widthButtons">
+			Line Width:
+			<div class="width two">2</div>
+			<div class="width five">5</div>
+			<div class="width eight">8</div>
+			<div class="width eleven">11</div>
+		</div>
+		<div id="otherButtons">
+			<div id="erase">Erase</div>
+			<div id="clear">Clear</div>
+			<div id="save">Save</div>
+		</div>
+	</div>
+	<div id="mainPanel">
+		<div id="memberBox"><ul id="roomMembers"></ul></div>
+		<canvas id="canvas" width="800" height="400"></canvas>
+	</div>
+	</center>
+
+
+	<script type="text/javascript">
+		var socket = io.connect(window.location.hostname);
+		var username = window.prompt('Enter a username:', 'name');
+		if (username === null) {
+			username = name;
+		}
+		var canvas = $('#canvas');
+		var context = canvas[0].getContext('2d');
+		context.lineCap = 'round';
+		var notEraser = context.globalCompositeOperation;
+		var prev = {};
+		var drawing = false;
+		var currColor = 'black';
+		var currWidth = 5;
+
+  		window.addEventListener('load', function(){
+  			var li = document.createElement('li');
+  			li.innerHTML = "Loading...";
+  			$('#roomMembers').append(li);
+			socket.emit('join', '{{roomName}}', username, function(dataURL){
+		        var imageObj = new Image();
+		        imageObj.onload = function() {
+		          context.drawImage(this, 0, 0);
+		        };
+		        imageObj.src = dataURL;
+			});
+		});
+
+		socket.on('membershipChanged', function(members){
+			$('#roomMembers').empty();
+			$.each(members, function(index, name) {
+				var li = document.createElement('li');
+				li.innerHTML = name;
+				$('#roomMembers').append(li);
+			});
+		});
+
+		socket.on('draw', function(fromX, fromY, toX, toY, color, width){
+			draw(fromX, fromY, toX, toY, color, width);
+		});
+
+		socket.on('clear', function() {
+			context.clearRect(0, 0, 800, 400);
+		});
+
+		canvas.mousedown(function (e) {
+			e.preventDefault();
+			drawing = true;
+			prev.x = e.pageX - this.offsetLeft;
+			prev.y = e.pageY - this.offsetTop;
+		});
+		$(document).mouseup(function () {
+			drawing = false;
+		});
+		$(document).mouseout(function () {
+			drawing = false;
+		})
+  		canvas.mousemove(function (e) {
+  			if (drawing && (Math.abs(e.pageX - this.offsetLeft - prev.x) > 5 || Math.abs(e.pageY - this.offsetTop - prev.y) > 5)) {
+  				var currCanvas = canvas[0].toDataURL();
+  				var newX = e.pageX - this.offsetLeft;
+  				var newY = e.pageY - this.offsetTop;
+  				draw(prev.x, prev.y, newX, newY, currColor, currWidth);
+	  			socket.emit('drawing', '{{roomName}}', currCanvas, prev.x, prev.y, newX, newY, currColor, currWidth);
+	  			prev.x = newX;
+	  			prev.y = newY;
+  			}
+  		});
+
+  		$('#clear').click(function () {
+  			context.clearRect(0, 0, 800, 400);
+  			socket.emit('clear', '{{roomName}}', canvas[0].toDataURL());
+  		});
+  		$('.color').click(function () {
+  			$('#erase').css("border", "2px solid black");
+  			currColor = $(this).css('background-color');
+  			$(this).css("border", "2px solid white");
+  			$('.color').each(function () {
+  				if ($(this).css('background-color') != currColor) {
+  					$(this).css("border", "2px solid transparent");
+  				}
+  			});
+  		})
+  		$('.width').click(function () {
+  			currWidth = $(this).text();
+  			$(this).css("border", "2px solid white");
+  			$('.width').each(function () {
+  				if ($(this).text() != currWidth) {
+  					$(this).css("border", "2px solid transparent");
+  				}
+  			});
+  		})
+  		$('#save').click(function() {
+  			window.open(canvas[0].toDataURL());
+  		});
+  		$('#erase').click(function() {
+  			currColor = "eraser";
+  			$('#erase').css("border", "2px solid red");
+  			$('.color').each(function () {
+  				$(this).css("border", "2px solid transparent");
+  			});
+  		});
+
+  		function draw(fromX, fromY, toX, toY, color, width) {
+			context.beginPath();
+			if (color == "eraser") {
+				context.globalCompositeOperation = "destination-out";
+				context.strokeStyle = "rgba(0,0,0,1)";
+			} else {
+				context.globalCompositeOperation = notEraser;
+				context.strokeStyle = color;
+			}
+			with(context) {
+			    lineWidth = width;
+		        moveTo(fromX, fromY);
+		        lineTo(toX, toY);
+		        stroke();
+		        closePath();
+		    }
+  		}
+	</script>
+</body>
+</html>

@@ -1,0 +1,71 @@
+<!DOCTYPE html> 
+<html>
+<head>
+	<link rel="stylesheet" type="text/css" href="/public/style.css">
+	<script src="/socket.io/socket.io.js"></script>
+	<script type="text/javascript" src="http://ajax.googleapis.com/ajax/libs/jquery/1.8.3/jquery.min.js"></script>
+</head>
+<body>
+	<center><h3>Current Rooms:</h3>
+	<ul id="rooms"></ul>
+	<div id="startNewRoom">
+	<form method="POST" action="/new" id="newRoom"> 
+		<textarea cols="30" rows="1" name="name" id="userText"></textarea>
+    	<p><input type="submit" value="Go to Room"></p>
+	</form></div></center>		
+
+	<script type="text/javascript">
+		var roomCount = 0;
+		var socket = io.connect(window.location.hostname);
+		updateRoomList("Loading...");
+		window.addEventListener('load', function(){
+			socket.emit('start', function(rooms){
+				$('#rooms').empty();
+				if (rooms.length <= 1) {
+					updateRoomList("No Active Rooms -- Start a New Room!");
+					roomCount = 0;
+				} else {
+					$.each(rooms, function(index, name) {
+						updateRoomList(name);
+					});
+				}
+			});
+		});
+
+		$('#userText').keypress(function(e){
+		      if(e.which == 13){
+		      	e.preventDefault();
+		        $('form').submit();
+		      }
+		});
+
+		socket.on('newRoom', function(name, rooms) {
+			if (roomCount == 0 ) {
+				$('#rooms').empty();
+			}
+			updateRoomList(name);
+		});
+
+		socket.on('roomClosed', function(rooms) {
+			$('#rooms').empty();
+			roomCount = 0;
+			$.each(rooms, function(index, name) {
+				updateRoomList(name);
+			});
+			if (roomCount == 0) {
+				updateRoomList("No Active Rooms -- Start a New Room!");
+				roomCount = 0;
+			}
+		});
+
+		function updateRoomList(name) {
+			if (name != 'favicon.ico') {
+				roomCount +=1;
+				var li = document.createElement('li');
+				li.innerHTML = name;
+				$('#rooms').append(li);
+			}
+		}
+	</script>
+</body>
+</html>
